@@ -50,7 +50,7 @@ class UserSeeder extends Seeder
                 ['email' => 'participant@example.com'],
                 ['password' => bcrypt('participant1')],
             );
-            $user->assignRole(ROLE::ORGANIZER);
+            $user->assignRole(ROLE::PARTICIPANT);
         }
     }
 }

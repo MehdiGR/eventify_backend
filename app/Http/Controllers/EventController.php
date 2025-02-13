@@ -8,9 +8,9 @@ class EventController extends CrudController
 {
     protected $table = 'events';
 
-    protected $modelClass = Event::class;
+    protected $restricted = ['create', 'update', 'delete']; // Restrict certain actions
 
-    protected $restricted = ['create', 'read', 'update', 'delete'];
+    protected $modelClass = Event::class;
 
     protected function getTable()
     {
