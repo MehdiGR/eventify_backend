@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\EventController;
 use App\Http\Controllers\UploadController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -57,23 +56,6 @@ Route::middleware('auth:api')->group(
                         Route::put('/{id}', 'updateOne');
                         Route::patch('/{id}', 'patchOne');
                         Route::delete('/{id}', 'deleteOne');
-                    }
-                );
-            }
-        );
-
-        // Organizer-specific routes
-        Route::prefix('events')->name('events.')->group(
-            function () {
-                Route::controller(EventController::class)->group(
-                    function () {
-                        Route::post('/', 'createOne')->middleware('role:ORGANIZER'); // Only ORGANIZER can create events
-                        Route::get('/{id}', 'readOne');
-                        Route::get('/', 'readAll');
-                        Route::put('/{id}', 'updateOne')->middleware('role:ORGANIZER'); // Only ORGANIZER can update events
-                        Route::patch('/{id}', 'patchOne')->middleware('role:ORGANIZER'); // Only ORGANIZER can patch events
-                        Route::delete('/{id}', 'deleteOne')->middleware('role:ORGANIZER'); // Only ORGANIZER can delete events
-                        Route::post('/register', 'registerForEvent')->middleware('role:PARTICIPANT'); //
                     }
                 );
             }

@@ -2,13 +2,21 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
-class Event extends Model
+class Event extends BaseModel
 {
     // Fillable fields for mass assignment
-    protected $fillable = ['name', 'description', 'start_date', 'end_date', 'organizer_id'];
+    protected $fillable = [
+        'name',
+        'description',
+        'start_date',
+        'end_date',
+        'organizer_id',
+        'location',
+        'max_participants',
+    ];
 
     // Append custom attributes to JSON responses
     protected $appends = ['participant_count'];
@@ -19,7 +27,8 @@ class Event extends Model
     // Define the date fields for soft deletes
     protected $dates = ['deleted_at'];
 
-    /**
+    /**,        'max_participants', // New field: Maximum number of participants
+     *
      * Relationships
      */
     public function organizer()
@@ -51,9 +60,9 @@ class Event extends Model
 
         // Clean up permissions when an event is deleted
         static::deleted(function ($event) {
-            $permissions = Permission::where('name', 'like', 'events.'.$event->id.'.%')->get();
-            DB::table('users_permissions')->whereIn('permission_id', $permissions->pluck('id'))->delete();
-            Permission::destroy($permissions->pluck('id'));
+            DB::table('permissions')
+                ->where('name', 'like', 'events.'.$event->id.'.%')
+                ->delete();
         });
     }
 
@@ -68,12 +77,12 @@ class Event extends Model
     /**
      * Query Scopes
      */
-    public function UpcomingEvents($query)
+    public function scopeUpcomingEvents($query)
     {
         return $query->where('start_date', '>', now());
     }
 
-    public function OrganizedBy($query, $userId)
+    public function scopeOrganizedBy($query, $userId)
     {
         return $query->where('organizer_id', $userId);
     }
@@ -88,6 +97,8 @@ class Event extends Model
             'description' => 'nullable|string',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
+            'location' => 'required|string|max:255',
+            'max_participants' => 'required|integer|min:1',
         ];
     }
 }
