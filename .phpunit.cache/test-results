@@ -1,1 +1,1 @@
-{"version":1,"defects":{"Tests\\Unit\\EventControllerTest::testRegisterForEvent":8},"times":{"Tests\\Unit\\EventControllerTest::test_example":0.006,"Tests\\Unit\\EventControllerTest::testRegisterForEvent":0.035}}
+{"version":1,"defects":{"EventNotificationTest::test_event_creation_triggers_broadcast":8,"EventNotificationTest::test_event_broadcasts_correct_data":8},"times":{"EventNotificationTest::test_event_creation_triggers_broadcast":0.038,"EventNotificationTest::test_event_broadcasts_correct_data":0.001,"EventNotificationTest::test_pusher_configuration":0.002}}

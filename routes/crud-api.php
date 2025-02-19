@@ -3,23 +3,34 @@
 use App\Http\Controllers\EventController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('auth:api')->group(
-    function () {
-        // Organizer-specific routes
-        Route::prefix('events')->name('events.')->group(
-            function () {
-                Route::controller(EventController::class)->group(
-                    function () {
-                        Route::post('/', 'createOne')->middleware('role:ORGANIZER'); // Only ORGANIZER can create events
-                        Route::get('/{id}', 'readOne');
-                        Route::get('/', 'readAll');
-                        Route::put('/{id}', 'updateOne')->middleware('role:ORGANIZER'); // Only ORGANIZER can update events
-                        Route::patch('/{id}', 'patchOne')->middleware('role:ORGANIZER'); // Only ORGANIZER can patch events
-                        Route::delete('/{id}', 'deleteOne')->middleware('role:ORGANIZER'); // Only ORGANIZER can delete events
-                        Route::post('/register', 'registerForEvent')->middleware('role:PARTICIPANT'); //
-                    }
-                );
-            }
-        );
-    }
-);
+Route::prefix('events')->name('events.')->group(function () {
+    // Public endpoints
+    Route::controller(EventController::class)->group(function () {
+        Route::get('/', 'readAll');
+        Route::get('/{id}', 'readOne');
+    });
+
+    // Authenticated endpoints
+    Route::middleware('auth:api')->group(function () {
+        // Organizer-specific endpoints
+        Route::middleware('role:ORGANIZER')->group(function () {
+            Route::controller(EventController::class)->group(function () {
+                Route::post('/', 'createOne');
+                Route::put('/{id}', 'updateOne');
+                Route::patch('/{id}', 'patchOne');
+                Route::delete('/{id}', 'deleteOne');
+
+                // Add organizer-specific routes here
+                Route::get('/dashboard/stats', 'organizerStats');
+                Route::get('/my-events', 'organizerEvents');
+            });
+        });
+
+        // Participant-specific endpoints
+        Route::middleware('role:PARTICIPANT')->group(function () {
+            Route::controller(EventController::class)->group(function () {
+                Route::post('/register', 'registerForEvent');
+            });
+        });
+    });
+});

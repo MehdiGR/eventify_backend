@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Welcome to Our Application</title>
+    <title>{{ __('event.new_event_notification') }}</title>
 </head>
 <body>
-    <h1>Hello, {{ $name }}</h1>
-    <p>Thank you for registering with us!</p>
+    <h1>{{ __('event.new_event_notification') }}</h1>
+    <p>{{ __('event.new_event_message', ['name' => $eventName]) }}</p>
+    <p><strong>{{ __('event.description') }}:</strong> {{ $eventDescription }}</p>
+    <p><strong>{{ __('event.start_date') }}:</strong> {{ $eventStartDate }}</p>
+    <p><strong>{{ __('event.end_date') }}:</strong> {{ $eventEndDate }}</p>
 </body>
 </html>

@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
 class Event extends BaseModel
 {
+    use HasFactory;
+
     // Fillable fields for mass assignment
     protected $fillable = [
         'name',
@@ -16,6 +19,7 @@ class Event extends BaseModel
         'organizer_id',
         'location',
         'max_participants',
+        'image',
     ];
 
     // Append custom attributes to JSON responses
@@ -41,6 +45,10 @@ class Event extends BaseModel
         return $this->belongsToMany(User::class, 'event_participants');
     }
 
+    // public function ticketTypes()
+    // {
+    //     return $this->hasMany(TicketType::class);
+    // }
     /**
      * Booted method for event lifecycle hooks
      */
@@ -86,7 +94,28 @@ class Event extends BaseModel
     {
         return $query->where('organizer_id', $userId);
     }
+    // In your HasDataTables trait or Event model
+    //     public function scopeDataTable($query, $params)
+    // {
+    //     // Only check permissions if user exists
+    //     if ($params->user) {
+    //         if (!$params->user->allTableReadPermissions($this->getTable())) {
+    //             throw new PermissionException();
+    //         }
+    //     }
 
+    //     // Keep existing sorting - works for all users
+    //     foreach ($params->order as $order) {
+    //         $query->orderBy($order['column'], $order['direction']);
+    //     }
+
+    //     // Keep existing filtering - works for all users
+    //     foreach ($params->filter as $filter) {
+    //         $query->where($filter['column'], $filter['operator'], $filter['value']);
+    //     }
+
+    //     return $query;
+    // }
     /**
      * Validation Rules
      */
@@ -95,10 +124,12 @@ class Event extends BaseModel
         return [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
+            'start_date' => 'required|date_format:Y-m-d H:i:s',
+            'end_date' => 'required|date_format:Y-m-d H:i:s|after:start_date',
+            'organizer_id' => 'required|exists:users,id',
             'location' => 'required|string|max:255',
             'max_participants' => 'required|integer|min:1',
+            'image' => 'nullable|url', // Allows optional URL strings
         ];
     }
 }

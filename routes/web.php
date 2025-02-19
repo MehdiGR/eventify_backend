@@ -12,6 +12,15 @@ use Illuminate\Support\Facades\Route;
 | contains the "web" middleware group. Now create something great!
 |
 */
+// Temporary route (routes/web.php)
+// Temporary route test (routes/web.php)
+Route::get('/test-pusher', function () {
+    return [
+        'broadcast_driver' => config('broadcasting.default'),
+        'pusher_key' => config('broadcasting.connections.pusher.key'),
+        'app_env' => env('APP_ENV'),
+    ];
+});
 
 Route::get(
     '/auth/disconnected', function () {

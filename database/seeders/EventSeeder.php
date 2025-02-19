@@ -18,14 +18,18 @@ class EventSeeder extends Seeder
 
         $events = [
             [
-                'name' => 'Event 1',
-                'description' => 'Description for Event 1',
+                'name' => 'Event 3',
+                'description' => 'Description for Event 3',
+                'location' => 'Casablanca',
+                'max_participants' => 10,
                 'start_date' => now(),
                 'end_date' => now()->addDays(7),
             ],
             [
-                'name' => 'Event 2',
-                'description' => 'Description for Event 2',
+                'name' => 'Event 4',
+                'description' => 'Description for Event 4',
+                'location' => 'Casablanca',
+                'max_participants' => 10,
                 'start_date' => now()->addDays(8),
                 'end_date' => now()->addDays(15),
             ],

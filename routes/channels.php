@@ -18,3 +18,8 @@ Broadcast::channel(
         return (int) $user->id === (int) $id;
     }
 );
+Broadcast::channel(
+    'events', function ($user) {
+        return true; // Allow all authenticated users to access the channel
+    }
+);

@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.5/phpunit.xsd" bootstrap="vendor/autoload.php" colors="true" cacheDirectory=".phpunit.cache">
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.5/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+>
   <testsuites>
-    <!-- <testsuite name="Feature">
+    <testsuite name="Feature">
       <directory suffix="Test.php">./tests/Feature</directory>
-    </testsuite> -->
+    </testsuite>
     <testsuite name="Unit">
       <directory suffix="Test.php">./tests/Unit</directory>
     </testsuite>
@@ -12,11 +17,23 @@
     <env name="APP_ENV" value="testing"/>
     <env name="BCRYPT_ROUNDS" value="4"/>
     <env name="CACHE_DRIVER" value="array"/>
-    <env name="DB_CONNECTION" value="sqlite"/>
-    <env name="DB_DATABASE" value=":memory:"/>
     <env name="MAIL_MAILER" value="array"/>
     <env name="QUEUE_CONNECTION" value="sync"/>
     <env name="SESSION_DRIVER" value="array"/>
+    <!-- MySQL Configuration -->
+    <env name="DB_CONNECTION" value="mysql"/>
+    <env name="DB_HOST" value="localhost"/> <!-- Add this line -->
+    <env name="DB_PORT" value="3306"/> <!-- Add this line -->
+    <env name="DB_DATABASE" value="eventifyDB"/>
+    <env name="DB_USERNAME" value="root"/>
+    <env name="DB_PASSWORD" value="newpass"/>
+    <!-- PUSHER Configuration -->
+     <env name="BROADCAST_DRIVER" value="pusher"/>
+    <env name="PUSHER_APP_ID" value="1943610"/>
+    <env name="PUSHER_APP_KEY" value="1783701c16282e1073ea"/>
+    <env name="PUSHER_APP_SECRET" value="71a752ad7b461683c771"/>
+    <env name="PUSHER_APP_CLUSTER" value="eu"/>
+
   </php>
   <source>
     <include>
