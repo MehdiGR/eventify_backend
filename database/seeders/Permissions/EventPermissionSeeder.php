@@ -32,14 +32,21 @@ class EventPermissionSeeder extends Seeder
         $this->aclService->createScopePermissions(
             'events',
             [
-                'create', 'read', 'update', 'delete',
-                'read_own', 'update_own', 'delete_own', 'register',
+                'create',
+                'read',
+                'update',
+                'delete',
+                'read_own',
+                'update_own',
+                'delete_own',
+                'register',
             ]
         );
 
         // Assign permissions to roles
         $this->aclService->assignScopePermissionsToRole(
-            $participantRole, 'events',
+            $participantRole,
+            'events',
             [
                 'read',
                 'register',
@@ -47,7 +54,8 @@ class EventPermissionSeeder extends Seeder
         );
         $this->aclService->assignScopePermissionsToRole(
             $organizerRole,
-            'events', [
+            'events',
+            [
                 'create',
                 'read',
                 'read_own',
@@ -56,9 +64,13 @@ class EventPermissionSeeder extends Seeder
             ]
         );
         $this->aclService->assignScopePermissionsToRole(
-            $adminRole, 'events',
+            $adminRole,
+            'events',
             [
-                'create', 'read', 'update', 'delete',
+                'create',
+                'read',
+                'update',
+                'delete',
             ]
         );
     }

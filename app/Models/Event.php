@@ -8,9 +8,31 @@ use Illuminate\Support\Facades\DB;
 
 class Event extends BaseModel
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
-    // Fillable fields for mass assignment
+    /**
+     * Event statuses.
+     */
+    public const STATUS_DRAFT = 'draft';
+
+    public const STATUS_PUBLISHED = 'published';
+
+    public const STATUS_CANCELED = 'canceled';
+
+    public const STATUS_COMPLETED = 'completed';
+
+    /**
+     * Event visibilities.
+     */
+    public const VISIBILITY_PUBLIC = 'public';
+
+    public const VISIBILITY_PRIVATE = 'private';
+
+    public const VISIBILITY_GROUP = 'group';
+
+    /**
+     * Fillable fields for mass assignment.
+     */
     protected $fillable = [
         'name',
         'description',
@@ -20,45 +42,133 @@ class Event extends BaseModel
         'location',
         'max_participants',
         'image',
+        'status',
+        'visibility', // Add visibility field
     ];
 
-    // Append custom attributes to JSON responses
+    /**
+     * Default attribute values.
+     */
+    protected $attributes = [
+        'status' => self::STATUS_DRAFT,
+        'visibility' => self::VISIBILITY_PUBLIC, // Default visibility to public
+    ];
+
+    /**
+     * Appended attributes to include in JSON responses.
+     */
     protected $appends = ['participant_count'];
 
-    // Enable soft deletes
-    use SoftDeletes;
-
-    // Define the date fields for soft deletes
+    /**
+     * Dates that should be mutated to Carbon instances.
+     */
     protected $dates = ['deleted_at'];
 
-    /**,        'max_participants', // New field: Maximum number of participants
-     *
-     * Relationships
+    /**
+     * Relationship: Event organizer.
      */
     public function organizer()
     {
         return $this->belongsTo(User::class, 'organizer_id');
     }
 
+    /**
+     * Relationship: Event participants.
+     */
     public function participants()
     {
         return $this->belongsToMany(User::class, 'event_participants');
     }
 
-    // public function ticketTypes()
-    // {
-    //     return $this->hasMany(TicketType::class);
-    // }
     /**
-     * Booted method for event lifecycle hooks
+     * Scope: Filter published events.
+     */
+    public function scopePublished($query)
+    {
+        return $query->where('status', self::STATUS_PUBLISHED);
+    }
+
+    /**
+     * Scope: Filter draft events.
+     */
+    public function scopeDraft($query)
+    {
+        return $query->where('status', self::STATUS_DRAFT);
+    }
+
+    /**
+     * Scope: Filter canceled events.
+     */
+    public function scopeCanceled($query)
+    {
+        return $query->where('status', self::STATUS_CANCELED);
+    }
+
+    /**
+     * Scope: Filter completed events.
+     */
+    public function scopeCompleted($query)
+    {
+        return $query->where('status', self::STATUS_COMPLETED);
+    }
+
+    /**
+     * Scope: Filter upcoming events.
+     */
+    public function scopeUpcomingEvents($query)
+    {
+        return $query->where('start_date', '>', now());
+    }
+
+    /**
+     * Scope: Filter events organized by a specific user.
+     */
+    public function scopeOrganizedBy($query, $userId)
+    {
+        return $query->where('organizer_id', $userId);
+    }
+
+    /**
+     * Accessor: Get the participant count.
+     */
+    public function getParticipantCountAttribute()
+    {
+        return $this->participants()->count();
+    }
+
+    /**
+     * Accessor: Get the event visibility.
+     */
+    /**
+     * Scope: Filter events that are visible to the user.
+     */
+    public function scopeVisible($query, $user = null)
+    {
+        return $query->where(function ($query) use ($user) {
+            $query->where('visibility', self::VISIBILITY_PUBLIC) // Public events are accessible to all
+                ->orWhere('visibility', self::VISIBILITY_GROUP) // Group events are visible to users in that group
+                ->whereHas('groups', function ($query) use ($user) {
+                    $query->whereHas('participants', function ($query) use ($user) {
+                        $query->where('user_id', $user->id); // Check if the user is part of the group
+                    });
+                })
+                ->orWhere(function ($query) use ($user) {
+                    $query->where('visibility', self::VISIBILITY_PRIVATE) // Private events should be visible based on permissions
+                        ->where('organizer_id', $user->id); // Only the organizer can view private events
+                });
+        });
+    }
+
+    /**
+     * Boot method to handle model events.
      */
     protected static function booted()
     {
         parent::booted();
 
-        // Assign permissions when an event is created
+        // Assign permissions when an event is created.
         static::created(function ($event) {
-            $organizer = $event->organizer; // Get the organizer of the event
+            $organizer = $event->organizer;
             if ($organizer) {
                 $organizer->givePermission('events.'.$event->id.'.read');
                 $organizer->givePermission('events.'.$event->id.'.update');
@@ -66,7 +176,7 @@ class Event extends BaseModel
             }
         });
 
-        // Clean up permissions when an event is deleted
+        // Clean up permissions when an event is deleted.
         static::deleted(function ($event) {
             DB::table('permissions')
                 ->where('name', 'like', 'events.'.$event->id.'.%')
@@ -75,49 +185,10 @@ class Event extends BaseModel
     }
 
     /**
-     * Custom Accessor for participant count
-     */
-    public function getParticipantCountAttribute()
-    {
-        return $this->participants()->count();
-    }
-
-    /**
-     * Query Scopes
-     */
-    public function scopeUpcomingEvents($query)
-    {
-        return $query->where('start_date', '>', now());
-    }
-
-    public function scopeOrganizedBy($query, $userId)
-    {
-        return $query->where('organizer_id', $userId);
-    }
-    // In your HasDataTables trait or Event model
-    //     public function scopeDataTable($query, $params)
-    // {
-    //     // Only check permissions if user exists
-    //     if ($params->user) {
-    //         if (!$params->user->allTableReadPermissions($this->getTable())) {
-    //             throw new PermissionException();
-    //         }
-    //     }
-
-    //     // Keep existing sorting - works for all users
-    //     foreach ($params->order as $order) {
-    //         $query->orderBy($order['column'], $order['direction']);
-    //     }
-
-    //     // Keep existing filtering - works for all users
-    //     foreach ($params->filter as $filter) {
-    //         $query->where($filter['column'], $filter['operator'], $filter['value']);
-    //     }
-
-    //     return $query;
-    // }
-    /**
-     * Validation Rules
+     * Validation rules for creating or updating an event.
+     *
+     * @param  int|null  $id
+     * @return array
      */
     public static function rules($id = null)
     {
@@ -129,7 +200,9 @@ class Event extends BaseModel
             'organizer_id' => 'required|exists:users,id',
             'location' => 'required|string|max:255',
             'max_participants' => 'required|integer|min:1',
-            'image' => 'nullable|url', // Allows optional URL strings
+            'image' => 'nullable|url',
+            'status' => 'required|in:draft,published,canceled,completed',
+            'visibility' => 'required|in:public,private,group', // Add validation for visibility
         ];
     }
 }

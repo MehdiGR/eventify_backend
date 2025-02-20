@@ -6,8 +6,8 @@ use App\Events\NewEventCreated;
 use App\Jobs\SendEventNotification;
 use App\Models\Event;
 use DB;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class EventController extends CrudController
@@ -18,8 +18,7 @@ class EventController extends CrudController
 
     public function __construct()
     {
-        // i was trying to modify the permissions for readAll and readOne
-        // Allow readAll and readOne to be publicly accessible
+        // Optionally modify restrictions for readAll and readOne
         // $this->restricted = array_diff($this->restricted, ['read_all', 'read_one']);
     }
 
@@ -33,57 +32,34 @@ class EventController extends CrudController
         return $this->modelClass;
     }
 
-    // protected function getReadAllQuery(): Builder
-    // {
-    //     return $this->model()->orderBy('name', 'asc');
-    // }
-    public function scopeOrganizedBy($query, $userId)
-    {
-        return $query->where('organizer_id', $userId);
-    }
-    // protected function getReadAllQuery(): Builder
-    // {
-    //     $query = parent::getReadAllQuery(); // Start with the base query
-
-    //     // Check if organizer_id is provided in the request
-    //     if (request()->has('organizer_id')) {
-    //         $organizerId = request()->input('organizer_id');
-    //         $query = $query->organizedBy($organizerId); // Apply the scope
-    //     }
-
-    //     return $query;
-    // }
+    /**
+     * READ ALL events.
+     * Supports public filtering by organizer_id.
+     */
     public function readAll(Request $request)
     {
         try {
-            // Handle public organizer filtering
-            if (! $request->user() && $request->has('organizer_id')) {
-                $events = Event::where('organizer_id', $request->organizer_id)
-                    ->orderBy('start_date', 'desc')
-                    ->paginate($request->input('per_page', 50));
+            $query = Event::query();
 
-                return response()->json([
-                    'success' => true,
-                    'data' => [
-                        'items' => $events->items(),
-                        'meta' => [
-                            'current_page' => $events->currentPage(),
-                            'last_page' => $events->lastPage(),
-                            'total_items' => $events->total(),
-                        ],
+            // Allow filtering by organizer_id if provided
+            if ($request->has('organizer_id')) {
+                $query->where('organizer_id', $request->organizer_id);
+            }
+
+            // Order by start date (most recent first)
+            $events = $query->orderBy('start_date', 'desc')->paginate($request->input('per_page', 50));
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'items' => $events->items(),
+                    'meta' => [
+                        'current_page' => $events->currentPage(),
+                        'last_page' => $events->lastPage(),
+                        'total_items' => $events->total(),
                     ],
-                ]);
-            }
-
-            // Add permission bypass for organizer_id filtering
-            if ($request->has('organizer_id') && $request->user()) {
-                $user = $request->user();
-                if ($user->hasRole('ADMIN') || $user->id == $request->organizer_id) {
-                    $this->restricted = array_diff($this->restricted, ['read_all']);
-                }
-            }
-
-            return parent::readAll($request);
+                ],
+            ]);
         } catch (\Exception $e) {
             Log::error('EventController readAll error: '.$e->getMessage());
 
@@ -91,6 +67,10 @@ class EventController extends CrudController
         }
     }
 
+    /**
+     * After creating an event, assign update/delete permissions,
+     * dispatch the NewEventCreated event and schedule notifications.
+     */
     protected function afterCreateOne($event, Request $request)
     {
         try {
@@ -101,19 +81,13 @@ class EventController extends CrudController
 
                     return;
                 }
-                Log::info('Assigning permissions to user...');
                 $user->givePermission("events.{$event->id}.update_own");
                 $user->givePermission("events.{$event->id}.delete_own");
-
-                Log::info('Dispatching NewEventCreated event...');
                 event(new NewEventCreated($event));
-
-                Log::info('Dispatching SendEventNotification job...');
                 SendEventNotification::dispatch($event, $user);
             });
         } catch (\Exception $e) {
             Log::error('Error processing event creation: '.$e->getMessage());
-            Log::error($e->getTraceAsString());
 
             return response()->json([
                 'success' => false,
@@ -122,69 +96,37 @@ class EventController extends CrudController
         }
     }
 
+    /**
+     * After updating an event, notify participants if key details change.
+     */
     protected function afterUpdateOne($event, Request $request)
     {
-        // Notify participants if the event details have changed significantly
         if (isset($request->start_date) || isset($request->location)) {
             SendEventNotification::dispatch($event, $request->user(), 'update');
         }
     }
 
-    public function updateOne($id, Request $request)
-    {
-        $event = $this->model()->find($id);
-
-        // Check Global "events.update" + Ownership "events.{id}.update_own"
-        if (! $request->user()->hasAnyPermission(['events.update', "events.{$id}.update_own"])) {
-            return response()->json(['error' => 'Forbidden'], 403);
-        }
-
-        return parent::updateOne($id, $request);
-    }
-
-    public function deleteOne($id, Request $request)
-    {
-        $event = $this->model()->find($id);
-
-        // Check: Global "events.delete" + Ownership "events.{id}.delete_own"
-        if (! $request->user()->hasAnyPermission(['events.delete', "events.{$id}.delete_own"])) {
-            return response()->json(['error' => 'Forbidden'], 403);
-        }
-
-        return parent::deleteOne($id, $request);
-    }
-
+    /**
+     * Participant self-registration.
+     */
     protected function registerForEvent(Request $request)
     {
         try {
             $request->validate([
                 'event_id' => 'required|exists:events,id',
             ]);
-
             $user = $request->user();
-
-            // Check if user has permission to register
             if (! $user->hasPermission('events.register')) {
                 return response()->json(['success' => false, 'errors' => [__('common.permission_denied')]]);
             }
-
             $event = Event::findOrFail($request->input('event_id'));
-
-            // Check if the user is already registered
             if ($event->participants()->where('user_id', $user->id)->exists()) {
                 return response()->json(['success' => false, 'errors' => [__('event.already_registered')]]);
             }
-
-            // Attach the user to the event participants
             $event->participants()->attach($user->id);
-
-            // Dispatch a job to send the email notification
             SendEventNotification::dispatch($event, $user);
 
-            return response()->json([
-                'success' => true,
-                'message' => __('event.registered'),
-            ]);
+            return response()->json(['success' => true, 'message' => __('event.registered')]);
         } catch (\Exception $e) {
             Log::error('Error in registerForEvent: '.$e->getMessage());
 
@@ -192,28 +134,117 @@ class EventController extends CrudController
         }
     }
 
-    // EventController.php
+    /**
+     * Endpoint for participant self-registration.
+     */
+    public function register(Request $request, $eventId)
+    {
+        $request->merge(['event_id' => $eventId]);
 
+        return $this->registerForEvent($request);
+    }
+
+    /**
+     * Retrieve the list of participants for an event.
+     * Accessible by both organizers and participants.
+     */
+    public function participants($eventId)
+    {
+        $event = Event::findOrFail($eventId);
+        $participants = $event->participants()->get();
+
+        return response()->json(['success' => true, 'data' => $participants]);
+    }
+
+    /**
+     * Endpoint for participant self-unregistration.
+     */
+    public function unregister(Request $request, $eventId)
+    {
+        $user = $request->user();
+        $event = Event::findOrFail($eventId);
+        if (! $event->participants()->where('user_id', $user->id)->exists()) {
+            return response()->json(['success' => false, 'message' => 'You are not registered for this event']);
+        }
+        $event->participants()->detach($user->id);
+
+        return response()->json(['success' => true, 'message' => 'You have been unregistered from the event']);
+    }
+
+    /**
+     * Organizer manually adds a participant to an event.
+     */
+    public function addParticipant(Request $request, $eventId)
+    {
+        try {
+            $request->validate([
+                'user_id' => 'required|exists:users,id',
+            ]);
+            $organizer = $request->user();
+            $event = Event::findOrFail($eventId);
+            // Ensure the authenticated user is the event organizer.
+            if ($event->organizer_id !== $organizer->id) {
+                return response()->json(['success' => false, 'message' => __('common.permission_denied')]);
+            }
+            if ($event->participants()->where('user_id', $request->input('user_id'))->exists()) {
+                return response()->json(['success' => false, 'message' => __('event.already_registered')]);
+            }
+            $event->participants()->attach($request->input('user_id'));
+
+            return response()->json(['success' => true, 'message' => __('event.participant_added')]);
+        } catch (\Exception $e) {
+            Log::error('Error in addParticipant: '.$e->getMessage());
+
+            return response()->json(['success' => false, 'errors' => [__('common.unexpected_error')]]);
+        }
+    }
+
+    /**
+     * Organizer removes a participant from an event.
+     */
+    public function removeParticipant($eventId, $userId)
+    {
+        try {
+            $organizerId = Auth::id();
+            $event = Event::findOrFail($eventId);
+            if ($event->organizer_id !== $organizerId) {
+                return response()->json(['success' => false, 'message' => __('common.permission_denied')]);
+            }
+            if (! $event->participants()->where('user_id', $userId)->exists()) {
+                return response()->json(['success' => false, 'message' => __('event.participant_not_found')]);
+            }
+            $event->participants()->detach($userId);
+
+            return response()->json(['success' => true, 'message' => __('event.participant_removed')]);
+        } catch (\Exception $e) {
+            Log::error('Error in removeParticipant: '.$e->getMessage());
+
+            return response()->json(['success' => false, 'errors' => [__('common.unexpected_error')]]);
+        }
+    }
+
+    /**
+     * Returns statistics for the organizer's dashboard.
+     */
     public function organizerStats()
     {
-        $organizerId = auth()->id();
+        $organizerId = Auth::id();
 
         return response()->json([
             'total_events' => $this->model()
                 ->where('organizer_id', $organizerId)
                 ->count(),
-
             'upcoming_events' => $this->model()
-                ->upcoming()
+                ->upcomingEvents()
                 ->where('organizer_id', $organizerId)
                 ->count(),
-
-            'participants' => DB::table('event_participants')
+            'total_participants' => DB::table('event_participants')
                 ->whereIn('event_id', function ($query) use ($organizerId) {
                     $query->select('id')
                         ->from('events')
                         ->where('organizer_id', $organizerId);
                 })->count(),
+            'revenue' => 0, // Placeholder for revenue logic
         ]);
     }
 }
