@@ -6,6 +6,6 @@ enum ROLE: string
 {
     case USER = 'user';
     case ADMIN = 'admin';
-    // case PARTICIPANT = 'participant';
-    // case ORGANIZER = 'organizer';
+    case PARTICIPANT = 'participant';
+    case ORGANIZER = 'organizer';
 }

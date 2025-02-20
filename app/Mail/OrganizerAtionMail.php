@@ -9,7 +9,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class NewEventNotificationMail extends Mailable
+class OrganizerAtionMail extends Mailable
 {
     use Queueable, SerializesModels;
 
@@ -25,7 +25,7 @@ class NewEventNotificationMail extends Mailable
 
     public function build()
     {
-        return $this->subject(__('event.new_event_notification'))
+        return $this->subject(__('event.new_event_notification_participant'))
             ->view('emails.new_event_notification')
             ->with([
                 'eventName' => $this->event->name,

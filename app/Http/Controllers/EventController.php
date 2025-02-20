@@ -3,12 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Events\NewEventCreated;
+use App\Events\PublishedEventNotification;
+use App\Events\RegistrationNotification;
 use App\Jobs\SendEventNotification;
+use App\Mail\ParticipantActionMail;
 use App\Models\Event;
+use App\Models\User;
 use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Mail;
 
 class EventController extends CrudController
 {
@@ -18,8 +23,8 @@ class EventController extends CrudController
 
     public function __construct()
     {
-        // Optionally modify restrictions for readAll and readOne
-        // $this->restricted = array_diff($this->restricted, ['read_all', 'read_one']);
+        // Make read operations public
+        $this->restricted = array_diff($this->restricted, ['read_all', 'read_one']);
     }
 
     protected function getTable()
@@ -41,13 +46,12 @@ class EventController extends CrudController
         try {
             $query = Event::query();
 
-            // Allow filtering by organizer_id if provided
             if ($request->has('organizer_id')) {
                 $query->where('organizer_id', $request->organizer_id);
             }
 
-            // Order by start date (most recent first)
-            $events = $query->orderBy('start_date', 'desc')->paginate($request->input('per_page', 50));
+            $events = $query->orderBy('start_date', 'desc')
+                ->paginate($request->input('per_page', 50));
 
             return response()->json([
                 'success' => true,
@@ -63,7 +67,10 @@ class EventController extends CrudController
         } catch (\Exception $e) {
             Log::error('EventController readAll error: '.$e->getMessage());
 
-            return response()->json(['success' => false, 'errors' => [__('common.unexpected_error')]]);
+            return response()->json([
+                'success' => false,
+                'errors' => [__('common.unexpected_error')],
+            ]);
         }
     }
 
@@ -83,8 +90,8 @@ class EventController extends CrudController
                 }
                 $user->givePermission("events.{$event->id}.update_own");
                 $user->givePermission("events.{$event->id}.delete_own");
-                event(new NewEventCreated($event));
-                SendEventNotification::dispatch($event, $user);
+                // event(new NewEventCreated($event));
+                // SendEventNotification::dispatch($event, $user);
             });
         } catch (\Exception $e) {
             Log::error('Error processing event creation: '.$e->getMessage());
@@ -108,143 +115,194 @@ class EventController extends CrudController
 
     /**
      * Participant self-registration.
+     * Visitors can access the register page, and if not logged in the frontend shows a modal.
      */
-    protected function registerForEvent(Request $request)
+    public function register(Request $request, $id)
     {
         try {
-            $request->validate([
-                'event_id' => 'required|exists:events,id',
-            ]);
             $user = $request->user();
-            if (! $user->hasPermission('events.register')) {
-                return response()->json(['success' => false, 'errors' => [__('common.permission_denied')]]);
+            if (! $user) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => ['You must be logged in to register.'],
+                ]);
             }
-            $event = Event::findOrFail($request->input('event_id'));
+            $event = Event::findOrFail($id);
             if ($event->participants()->where('user_id', $user->id)->exists()) {
-                return response()->json(['success' => false, 'errors' => [__('event.already_registered')]]);
+                return response()->json([
+                    'success' => false,
+                    'errors' => [__('event.already_registered')],
+                ]);
             }
             $event->participants()->attach($user->id);
-            SendEventNotification::dispatch($event, $user);
 
-            return response()->json(['success' => true, 'message' => __('event.registered')]);
+            // Notify the organizer about the new registration
+            $organizer = User::find($event->organizer_id);
+            event(new RegistrationNotification($event, $user, 'register'));
+            Mail::to($organizer->email)
+                ->queue(new ParticipantActionMail($event, $user, 'register'));
+
+            return response()->json([
+                'success' => true,
+                'message' => __('event.registered'),
+            ]);
         } catch (\Exception $e) {
-            Log::error('Error in registerForEvent: '.$e->getMessage());
+            Log::error('Error in register: '.$e->getMessage());
 
-            return response()->json(['success' => false, 'errors' => [__('common.unexpected_error')]]);
+            return response()->json([
+                'success' => false,
+                'errors' => [__('common.unexpected_error')],
+            ]);
         }
     }
 
     /**
-     * Endpoint for participant self-registration.
+     * Participant self-unregistration.
      */
-    public function register(Request $request, $eventId)
+    public function unregister(Request $request, $id)
     {
-        $request->merge(['event_id' => $eventId]);
+        try {
+            $user = $request->user();
+            $event = Event::findOrFail($id);
+            if (! $event->participants()->where('user_id', $user->id)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You are not registered for this event',
+                ]);
+            }
+            $event->participants()->detach($user->id);
 
-        return $this->registerForEvent($request);
+            // Notify the organizer about the unregistration
+            $organizer = User::find($event->organizer_id);
+            event(new RegistrationNotification($event, $user, 'unregister'));
+            Mail::to($organizer->email)
+                ->queue(new ParticipantActionMail($event, $user, 'unregister'));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'You have been unregistered from the event',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in unregister: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'errors' => [__('common.unexpected_error')],
+            ]);
+        }
     }
 
     /**
      * Retrieve the list of participants for an event.
-     * Accessible by both organizers and participants.
      */
-    public function participants($eventId)
-    {
-        $event = Event::findOrFail($eventId);
-        $participants = $event->participants()->get();
-
-        return response()->json(['success' => true, 'data' => $participants]);
-    }
-
-    /**
-     * Endpoint for participant self-unregistration.
-     */
-    public function unregister(Request $request, $eventId)
-    {
-        $user = $request->user();
-        $event = Event::findOrFail($eventId);
-        if (! $event->participants()->where('user_id', $user->id)->exists()) {
-            return response()->json(['success' => false, 'message' => 'You are not registered for this event']);
-        }
-        $event->participants()->detach($user->id);
-
-        return response()->json(['success' => true, 'message' => 'You have been unregistered from the event']);
-    }
-
-    /**
-     * Organizer manually adds a participant to an event.
-     */
-    public function addParticipant(Request $request, $eventId)
+    public function participants($id)
     {
         try {
-            $request->validate([
-                'user_id' => 'required|exists:users,id',
+            $event = Event::findOrFail($id);
+            $participants = $event->participants()->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $participants,
             ]);
-            $organizer = $request->user();
-            $event = Event::findOrFail($eventId);
-            // Ensure the authenticated user is the event organizer.
-            if ($event->organizer_id !== $organizer->id) {
-                return response()->json(['success' => false, 'message' => __('common.permission_denied')]);
-            }
-            if ($event->participants()->where('user_id', $request->input('user_id'))->exists()) {
-                return response()->json(['success' => false, 'message' => __('event.already_registered')]);
-            }
-            $event->participants()->attach($request->input('user_id'));
-
-            return response()->json(['success' => true, 'message' => __('event.participant_added')]);
         } catch (\Exception $e) {
-            Log::error('Error in addParticipant: '.$e->getMessage());
+            Log::error('Error in participants: '.$e->getMessage());
 
-            return response()->json(['success' => false, 'errors' => [__('common.unexpected_error')]]);
+            return response()->json([
+                'success' => false,
+                'errors' => [__('common.unexpected_error')],
+            ]);
         }
     }
 
     /**
-     * Organizer removes a participant from an event.
+     * Retrieve the events a participant is registered for.
      */
-    public function removeParticipant($eventId, $userId)
+    public function participantsEvents(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $events = $user->events()->orderBy('start_date', 'desc')->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $events,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in participantsEvents: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'errors' => [__('common.unexpected_error')],
+            ]);
+        }
+    }
+
+    /**
+     * Retrieve events organized by the authenticated organizer.
+     */
+    public function organizerEvents(Request $request)
     {
         try {
             $organizerId = Auth::id();
-            $event = Event::findOrFail($eventId);
-            if ($event->organizer_id !== $organizerId) {
-                return response()->json(['success' => false, 'message' => __('common.permission_denied')]);
-            }
-            if (! $event->participants()->where('user_id', $userId)->exists()) {
-                return response()->json(['success' => false, 'message' => __('event.participant_not_found')]);
-            }
-            $event->participants()->detach($userId);
+            $events = $this->model()->where('organizer_id', $organizerId)
+                ->orderBy('start_date', 'desc')
+                ->paginate($request->input('per_page', 50));
 
-            return response()->json(['success' => true, 'message' => __('event.participant_removed')]);
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'items' => $events->items(),
+                    'meta' => [
+                        'current_page' => $events->currentPage(),
+                        'last_page' => $events->lastPage(),
+                        'total_items' => $events->total(),
+                    ],
+                ],
+            ]);
         } catch (\Exception $e) {
-            Log::error('Error in removeParticipant: '.$e->getMessage());
+            Log::error('Error in organizerEvents: '.$e->getMessage());
 
-            return response()->json(['success' => false, 'errors' => [__('common.unexpected_error')]]);
+            return response()->json([
+                'success' => false,
+                'errors' => [__('common.unexpected_error')],
+            ]);
         }
     }
 
     /**
-     * Returns statistics for the organizer's dashboard.
+     * Organizer-triggered event notifications.
+     * This endpoint is called when the organizer clicks the push button in the frontend.
      */
-    public function organizerStats()
+    public function sendEventNotifications(Request $request, $id)
     {
-        $organizerId = Auth::id();
+        try {
+            $user = $request->user();
+            $event = Event::findOrFail($id);
+            if ($event->organizer_id !== $user->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('common.permission_denied'),
+                ]);
+            }
+            event(new PublishedEventNotification($event, $user));
 
-        return response()->json([
-            'total_events' => $this->model()
-                ->where('organizer_id', $organizerId)
-                ->count(),
-            'upcoming_events' => $this->model()
-                ->upcomingEvents()
-                ->where('organizer_id', $organizerId)
-                ->count(),
-            'total_participants' => DB::table('event_participants')
-                ->whereIn('event_id', function ($query) use ($organizerId) {
-                    $query->select('id')
-                        ->from('events')
-                        ->where('organizer_id', $organizerId);
-                })->count(),
-            'revenue' => 0, // Placeholder for revenue logic
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => __('event.notifications_sent'),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error sending event notifications: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'errors' => [__('common.unexpected_error')],
+            ]);
+        }
+    }
+
+    protected function model()
+    {
+        return new ($this->modelClass)();
     }
 }

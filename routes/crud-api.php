@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\GroupController;
-use Illuminate\Support\Facades\Route;
 
 Route::prefix('events')->name('events.')->group(function () {
     // Public endpoints
@@ -13,8 +12,8 @@ Route::prefix('events')->name('events.')->group(function () {
 
     // Authenticated endpoints
     Route::middleware('auth:api')->group(function () {
-        // Organizer-specific endpoints
-        Route::middleware('role:ORGANIZER')->group(function () {
+        // Organizer endpoints
+        Route::middleware('role:organizer')->group(function () {
             Route::controller(EventController::class)->group(function () {
                 Route::post('/', 'createOne')->name('createOne');
                 Route::put('/{id}', 'updateOne')->name('updateOne');
@@ -33,15 +32,22 @@ Route::prefix('events')->name('events.')->group(function () {
         Route::get('/{id}/participants', [EventController::class, 'participants'])->name('participants');
 
         // Participant-specific endpoints
-        Route::middleware('role:PARTICIPANT')->group(function () {
+        Route::middleware('role:participant')->group(function () {
             Route::controller(EventController::class)->group(function () {
-                Route::post('/{id}/register', 'register')->name('register');
-                Route::delete('/{id}/participants/unregister', 'unregister')->name('unregister');
+                // Route to register for an event
+                Route::post('/{id}/register', 'register')->name('events.register');
+
+                // Route to unregister from an event
+                Route::delete('/{id}/participants/unregister', 'unregister')->name('events.unregister');
+
+                // Route to get the list of events a participant is registered for
+                Route::get('/my-events', 'participantsEvents')->name('participantsEvents');
             });
         });
     });
 });
+
 Route::middleware(['auth', 'role:admin'])->group(function () {
-    // only admin can handle the group entity for now
+    // Only admin can handle the group entity for now
     Route::resource('groups', GroupController::class);
 });

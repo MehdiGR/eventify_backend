@@ -29,6 +29,11 @@ class User extends BaseModel implements AuthenticatableContract, AuthorizableCon
     use MustVerifyEmail;
     use Notifiable;
 
+    public function events()
+    {
+        return $this->belongsToMany(Event::class, 'event_participants', 'user_id', 'event_id');
+    }
+
     public static $cacheKey = 'users';
 
     protected $fillable = [

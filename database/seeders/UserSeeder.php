@@ -44,13 +44,13 @@ class UserSeeder extends Seeder
                 ['email' => 'organizer@example.com'],
                 ['password' => bcrypt('organizer1')],
             );
-            $user->assignRole(ROLE::ORGANIZER);
-            // create an participate
-            $user = User::firstOrCreate(
-                ['email' => 'participant@example.com'],
-                ['password' => bcrypt('participant1')],
-            );
-            $user->assignRole(ROLE::PARTICIPANT);
+            // $user->assignRole(ROLE::ORGANIZER);
+            // // create an participate
+            // $user = User::firstOrCreate(
+            //     ['email' => 'participant@example.com'],
+            //     ['password' => bcrypt('participant1')],
+            // );
+            // $user->assignRole(ROLE::PARTICIPANT);
         }
     }
 }

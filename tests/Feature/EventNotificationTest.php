@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Events\NewEventCreated;
+use App\Events\PublishedEventNotification;
 use App\Models\Event;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -22,7 +22,7 @@ class EventNotificationTest extends TestCase
         $event = Event::factory()->create(['title' => 'Test Event']);
 
         // Add assertions to verify event broadcasting
-        EventFacade::assertDispatched(NewEventCreated::class, function ($e) use ($event) {
+        EventFacade::assertDispatched(PublishedEventNotification::class, function ($e) use ($event) {
             return $e->event->id === $event->id;
         });
     }
@@ -30,7 +30,7 @@ class EventNotificationTest extends TestCase
     public function test_event_broadcasts_correct_data()
     {
         $event = Event::factory()->create(['title' => 'Test Event']);
-        $broadcastedEvent = new NewEventCreated($event);
+        $broadcastedEvent = new PublishedEventNotification($event);
 
         // Channel assertion
         $this->assertEquals('events', $broadcastedEvent->broadcastOn()[0]->name);

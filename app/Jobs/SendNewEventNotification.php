@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Mail\NewEventNotificationMail;
+use App\Mail\OrganizerAtionMail;
 use App\Models\Event;
 use App\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -36,7 +36,7 @@ class SendNewEventNotification implements ShouldQueue
 
         foreach ($users as $user) {
             // Send email notification
-            Mail::to($user->email)->send(new NewEventNotificationMail($this->event));
+            Mail::to($user->email)->send(new OrganizerAtionMail($this->event));
         }
     }
 }

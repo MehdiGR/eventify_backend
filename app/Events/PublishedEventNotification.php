@@ -8,7 +8,7 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class NewEventCreated implements ShouldBroadcast // 👈 Changed "extends" to "implements"
+class PublishedEventNotification implements ShouldBroadcast // 👈 Changed "extends" to "implements"
 {
     use Dispatchable, SerializesModels;
 
@@ -32,7 +32,7 @@ class NewEventCreated implements ShouldBroadcast // 👈 Changed "extends" to "i
     public function broadcastWith()
     {
         return [
-            'message' => 'A new event has been created: '.$this->event->title,
+            'message' => 'A new event has been release: ' . $this->event->title,
             'event' => $this->event,
         ];
     }

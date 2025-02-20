@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ROLE;
-use App\Events\NewEventCreated;
+use App\Events\PublishedEventNotification;
 use App\Jobs\SendEventNotification;
 use App\Models\Event;
 use DB;
@@ -153,8 +153,8 @@ class EventController extends CrudController
                 $user->givePermission("events.{$event->id}.update_own");
                 $user->givePermission("events.{$event->id}.delete_own");
 
-                Log::info('Dispatching NewEventCreated event...');
-                event(new NewEventCreated($event));
+                Log::info('Dispatching PublishedEventNotification event...');
+                event(new PublishedEventNotification($event));
 
                 Log::info('Dispatching SendEventNotification job...');
                 SendEventNotification::dispatch($event, $user);

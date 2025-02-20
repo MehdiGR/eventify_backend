@@ -23,9 +23,9 @@ class RoleMiddleware
             return $next($request); // Admins bypass role checks
         }
 
-        if (! $user->hasRole(ROLE::ORGANIZER)) {
-            return response()->json(['success' => false, 'errors' => [__('common.permission_denied')]]);
-        }
+        // if (! $user->hasRole($role)) {
+        //     return response()->json(['success' => false, 'errors' => [__('common.permission_denied')]]);
+        // }
 
         return $next($request);
     }
