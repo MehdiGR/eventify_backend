@@ -32,7 +32,7 @@ class PublishedEventNotification implements ShouldBroadcast // 👈 Changed "ext
     public function broadcastWith()
     {
         return [
-            'message' => 'A new event has been release: ' . $this->event->title,
+            'message' => 'A new event has been release: '.$this->event->title,
             'event' => $this->event,
         ];
     }
