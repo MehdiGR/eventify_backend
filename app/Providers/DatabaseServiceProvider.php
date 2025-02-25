@@ -29,7 +29,8 @@ class DatabaseServiceProvider extends ServiceProvider
         Schema::defaultStringLength(191);
 
         Blueprint::macro(
-            'upload', function ($columnName) {
+            'upload',
+            function ($columnName) {
                 if (Schema::hasTable('uploads')) {
                     $this->foreignId($columnName)->nullable()->constrained('uploads')->nullOnDelete();
                 } else {
@@ -39,7 +40,8 @@ class DatabaseServiceProvider extends ServiceProvider
         );
 
         Blueprint::macro(
-            'dropUpload', function ($columnName) {
+            'dropUpload',
+            function ($columnName) {
                 if (Schema::hasColumn($this->getTable(), $columnName)) {
                     $this->dropForeign([$columnName]);
                     $this->dropColumn($columnName);
